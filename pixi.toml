@@ -1,0 +1,55 @@
+[project]
+name = "lumen-isb"
+channels = ["conda-forge", "pyviz"]
+platforms = ["osx-arm64"]
+
+[tasks]
+create-dev-env = "pixi shell --environment dev && pre-commit install"
+format = "ruff format --diff"
+lint = "ruff check --diff"
+
+[environments]
+dev = [
+    "code-hygiene",
+    "debug",
+    "jupyterlab",
+    "tests",
+]
+
+[dependencies]
+nodejs = "~=22.13.0"
+pip = "~=25.0.1"
+python = "~=3.12"
+# lumen = {channel = "pyviz", version = "~=0.7.0"}
+
+[pypi-dependencies]
+cdapython = {git = "https://github.com/CancerDataAggregator/cdapython.git"}
+lumen = {path = "../../../non-clients/open-source/holoviz-dev/lumen/", editable = true}
+duckdb = "~=1.2.0"
+griffe = "~=1.5.7"
+instructor = "~=1.7.2"
+pydantic = "~=2.10.6"
+pydantic-extra-types = "~=2.10.2"
+sqlalchemy = "~=2.0.38"
+sqlalchemy-bigquery = "~=1.12.1"
+
+[feature.code-hygiene.pypi-dependencies]
+black = "~=25.1.0"
+isort = "~=6.0.0"
+pre-commit = "~=4.1.0"
+pyright = "~=1.1.394"
+ruff = "~=0.9.6"
+
+[feature.debug.pypi-dependencies]
+ipdb = "~=0.13.13"
+
+[feature.jupyterlab.pypi-dependencies]
+jupyterlab = "~=4.3.5"
+jupyterlab-code-formatter = "~=3.0.2"
+jupyterlab-katex = "~=3.4.0"
+jupyterlab-spellchecker = "~=0.8.4"
+jupyterlab-unfold = "~=0.3.3"
+
+[feature.tests.pypi-dependencies]
+pytest = "~=8.3.4"
+pytest-cov = "~=6.0.0"

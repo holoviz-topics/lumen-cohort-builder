@@ -1,0 +1,57 @@
+[project]
+name = "lumen-isb"
+description = "Lumen AI interface to ISB's BigQuery data"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "BSD"}
+dynamic = ["version"]
+dependencies = [
+    "duckdb ~= 1.2.0",
+    "griffe ~= 1.5.7",
+    "instructor ~= 1.7.2",
+    "pydantic ~= 2.10.6",
+    "pydantic-extra-types ~= 2.10.2",
+    "sqlalchemy ~= 2.0.38",
+    "sqlalchemy-bigquery ~= 1.12.1",
+]
+requires-python = "~=3.12"
+authors = [{name = "HoloViz developers", email = "developers@holoviz.org"}]
+maintainers = [{name = "Holoviz developers", email = "developers@holoviz.org"}]
+classifiers = []
+
+[project.urls]
+
+[project.optional-dependencies]
+code-hygiene = [
+    "black ~= 25.1.0",
+    "isort ~= 6.0.0",
+    "pre-commit ~= 4.1.0",
+    "pyright ~= 1.1.394",
+    "ruff ~= 0.9.6",
+]
+debugging = [
+    "ipdb ~= 0.13.13",
+]
+jupyterlab = [
+    "jupyterlab ~= 4.3.5",
+    "jupyterlab-code-formatter ~= 3.0.2",
+    "jupyterlab-katex ~= 3.4.0",
+    "jupyterlab-spellchecker ~= 0.8.4",
+    "jupyterlab-unfold ~= 0.3.3",
+]
+tests = [
+    "pytest ~=8.3.4",
+    "pytest-cov ~= 6.0.0",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "no-guess-dev"
+
+[tool.ruff]
+line-length = 100
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
