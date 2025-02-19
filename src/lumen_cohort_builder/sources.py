@@ -1,5 +1,4 @@
 import pandas as pd
-from lumen.sources.base import cached_schema
 from lumen.sources.bigquery import BigQuerySource
 
 
@@ -13,9 +12,8 @@ class ISBSource(BigQuerySource):
         self.client = self.create_client()
         super().__init__(project_id=self.project_id, location=self.location)
 
-    @cached_schema
-    def cache_schema(self, skip_versioned: bool = True) -> None:
-        """Cache the ISB-CGC-BQ project schema locally.
+    def get_metadata(self, skip_versioned: bool = True) -> None:
+        """Get metadata about the ISB-CGC-BQ project.
 
         Parameters
         ----------
