@@ -19,11 +19,11 @@ dev = [
 nodejs = "~=22.13.0"
 pip = "~=25.0.1"
 python = "~=3.12"
-# lumen = {channel = "pyviz", version = "~=0.7.0"}
+google-cloud-sdk = "~=510.0.0"
 
 [pypi-dependencies]
 cdapython = {git = "https://github.com/CancerDataAggregator/cdapython.git"}
-lumen = {path = "../../../non-clients/open-source/holoviz-dev/lumen/", editable = true}
+lumen = "~=0.8.0"
 duckdb = "~=1.2.0"
 griffe = "~=1.5.7"
 huggingface-hub = "~=0.28.1"

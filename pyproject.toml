@@ -10,6 +10,7 @@ dependencies = [
     "huggingface-hub ~= 0.28.1",
     "instructor ~= 1.7.2",
     "llama-cpp-python ~=0.3.7",
+    "lumen ~= 0.8.0",
     "panel-graphic-walker ~= 0.6.1",
     "pydantic ~= 2.10.6",
     "pydantic-extra-types ~= 2.10.2",
