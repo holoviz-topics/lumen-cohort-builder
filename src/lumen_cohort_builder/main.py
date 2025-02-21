@@ -1,10 +1,15 @@
+import os
+
 import lumen.ai as lmai
+from lumen.sources.duckdb import DuckDBSource
 
-from lumen_cohort_builder.sources import ISBSource
 
-
+PROJECT_ID = "isb-cgc-bq"
+os.environ["GOOGLE_CLOUD_PROJECT"] = PROJECT_ID
 app = lmai.ExplorerUI(
-    ISBSource(project_id="isb-cgc-bq", location="us"),
+    # data=["./data/penguins.csv"],
+    # data=[ISBSource(project_id=PROJECT_ID, location="us")],
+    data=DuckDBSource(tables=["./data/penguins.parquet"]),
     llm=lmai.llm.LlamaCpp(),
     # agents=[],
 )
