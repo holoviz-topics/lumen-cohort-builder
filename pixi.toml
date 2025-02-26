@@ -23,6 +23,7 @@ google-cloud-sdk = "~=510.0.0"
 
 [pypi-dependencies]
 cdapython = {git = "https://github.com/CancerDataAggregator/cdapython.git"}
+db-dtypes = "~=1.4.1"
 lumen = "~=0.8.0"
 duckdb = "~=1.2.0"
 griffe = "~=1.5.7"
