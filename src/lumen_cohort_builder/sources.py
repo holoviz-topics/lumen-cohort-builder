@@ -425,7 +425,6 @@ class ISBSource(BigQuerySource):
         list[str]
             Table names are composed of f"{project_id}.{dataset_id}.{table_id}".
         """
-        print("Acquiring a list of tables for each BigQuery dataset in the project.")
         # NOTE: The return here prevents this method, which is called multiple times, from
         #       repopulating the self.tables list.
         if isinstance(self.tables, list):  # type check for param.List
@@ -466,7 +465,6 @@ class ISBSource(BigQuerySource):
         pd.DataFrame
         """
         data = []
-        print("Acquiring the metadata for each BigQuery dataset in the project.")
         if self.isb_client is not None:
             dataset_records = list(self.isb_client.list_datasets())
             for dataset_record in tqdm(dataset_records):
@@ -576,7 +574,6 @@ class ISBSource(BigQuerySource):
         -------
         dict[str, dict[str, Any]] | dict[str, Any]
         """
-        print("Acquiring the schema for each BigQuery dataset in the project.")
         schema = {}
         if self.isb_client is not None and self.sql_client is not None:
             bq_table = self.isb_client.get_table(table=table)
