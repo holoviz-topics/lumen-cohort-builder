@@ -1,5 +1,5 @@
 import json
-from typing import override, Any
+from typing import Any
 
 import google.auth
 import numpy as np
@@ -416,7 +416,6 @@ class ISBSource(BigQuerySource):
 
         # self.metadata = self.get_project_metadata()
 
-    @override
     def get_tables(self) -> list[str]:
         """Get a list of available tables for the ISB-CGC-BQ project.
 
@@ -554,7 +553,6 @@ class ISBSource(BigQuerySource):
         df = pd.DataFrame(data)
         return df
 
-    @override
     def get_schema(  # type: ignore [reportIncompatibleMethodOverride]
         self,
         table: str,
