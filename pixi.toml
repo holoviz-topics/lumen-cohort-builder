@@ -30,7 +30,7 @@ griffe = "~=1.5.7"
 huggingface-hub = "~=0.28.1"
 instructor = "~=1.7.2"
 llama-cpp-python = "~=0.3.7"
-panel-graphic-walker = "~=0.6.1"
+panel-graphic-walker = {version = "~=0.6.1", extras = ["kernel"]}
 pydantic = "~=2.10.6"
 pydantic-extra-types = "~=2.10.2"
 sqlalchemy = "~=2.0.38"
