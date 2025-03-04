@@ -18,7 +18,7 @@ dev = [
 [dependencies]
 nodejs = "~=22.13.0"
 pip = "~=25.0.1"
-python = "~=3.12"
+python = "~=3.12.0"
 google-cloud-sdk = "~=510.0.0"
 
 [pypi-dependencies]
