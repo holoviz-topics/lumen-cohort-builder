@@ -1,6 +1,6 @@
 [project]
 name = "lumen-cohort-builder"
-channels = ["conda-forge", "pyviz"]
+channels = ["conda-forge"]
 platforms = ["osx-arm64"]
 
 [tasks]

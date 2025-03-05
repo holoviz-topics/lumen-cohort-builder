@@ -5,13 +5,15 @@ import google.auth
 import numpy as np
 import pandas as pd
 import param
+from lumen.sources.base import BaseSQLSource, cached
 from tqdm import tqdm
 
 from google.cloud import bigquery, exceptions
 from google.cloud.bigquery.client import Client
 from google.auth.credentials import Credentials
 from google.auth.exceptions import DefaultCredentialsError
-from lumen.sources.base import BaseSQLSource
+
+from lumen.transforms.sql import SQLFilter
 from sqlalchemy.engine.create import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.sql.expression import text
@@ -92,7 +94,7 @@ class SQLAlchemySource(BaseSQLSource):
         return records
 
 
-class BigQuerySource(SQLAlchemySource):
+class BigQuerySource(BaseSQLSource):
     """BigQuery Lumen Source object.
 
     Notes
@@ -122,6 +124,9 @@ class BigQuerySource(SQLAlchemySource):
     )
     project_id = param.String(doc="The Google Cloud's project ID.")
     location = param.String(doc="Location where the project resides.")
+    filter_in_sql = param.Boolean(default=True, doc="Whether to apply filters in SQL or in-memory.")
+
+    enum_threshold = 0.10
     driver = "bigquery"
     dialect = "bigquery"
 
@@ -206,8 +211,11 @@ class BigQuerySource(SQLAlchemySource):
         return f"SELECT * FROM {table} LIMIT 5"
 
     def create_sql_expr_source(self, tables: dict[str, str], **kwargs):
-        # FIXME:
-        pass
+        params = dict(self.param.values(), **kwargs)
+        params.pop("name", None)
+        params["tables"] = tables
+        source = type(self)(**params)
+        return source
 
     def execute(self, sql_query: str) -> pd.DataFrame:
         output = pd.DataFrame()
@@ -239,12 +247,12 @@ class BigQuerySource(SQLAlchemySource):
 
         return client
 
-    def get_all_datasets_metadata(self) -> list[dict[str, str]]:
+    def get_all_datasets_metadata(self) -> pd.DataFrame:
         """Get metadata for all available datasets in the project.
 
         Returns
         -------
-        list[dict[str, str]]
+        pd.DataFrame
         """
         data = []
         if self.client is not None:
@@ -261,9 +269,10 @@ class BigQuerySource(SQLAlchemySource):
                     "dataset_modified": str(dataset.modified),
                 }
                 data.append(datum)
-        return data
+        df = pd.DataFrame(data)
+        return df
 
-    def get_table_metadata(self, project_id: str, dataset_id: str) -> list[dict[str, str | int]]:
+    def get_table_metadata(self, project_id: str, dataset_id: str) -> pd.DataFrame:
         """Get metadata for all tables associated with the given dataset.
 
         Parameters
@@ -275,7 +284,7 @@ class BigQuerySource(SQLAlchemySource):
 
         Returns
         -------
-        list[dict[str, str | int]]
+        pd.DataFrame
         """
         data = []
         if self.client is not None:
@@ -283,6 +292,12 @@ class BigQuerySource(SQLAlchemySource):
                 table_id = record.table_id
                 table_reference = f"{project_id}.{dataset_id}.{table_id}"
                 table = self.client.get_table(table=table_reference)
+                table_clustering_fields = json.dumps(table.clustering_fields)
+                if table_clustering_fields == "null":
+                    table_clustering_fields = None
+                table_labels = json.dumps(table.labels)
+                if table_labels == "null":
+                    table_labels = None
                 datum = {
                     "project_id": project_id,
                     "dataset_id": dataset_id,
@@ -292,18 +307,14 @@ class BigQuerySource(SQLAlchemySource):
                     "table_created": str(table.created),
                     "table_modified": str(table.modified),
                     "table_num_rows": table.num_rows,
-                    "table_clustering_fields": json.dumps(table.clustering_fields),
-                    "table_labels": json.dumps(table.labels),
+                    "table_clustering_fields": table_clustering_fields,
+                    "table_labels": table_labels,
                 }
                 data.append(datum)
-        return data
+        df = pd.DataFrame(data)
+        return df
 
-    def get_column_metadata(
-        self,
-        project_id: str,
-        dataset_id: str,
-        table_id: str,
-    ) -> list[dict[str, str]]:
+    def get_column_metadata(self, project_id: str, dataset_id: str, table_id: str) -> pd.DataFrame:
         """Get metadata for all columns associated with the given table.
 
         Parameters
@@ -317,7 +328,7 @@ class BigQuerySource(SQLAlchemySource):
 
         Returns
         -------
-        list[dict[str, str]]
+        pd.DataFrame
         """
         data = []
         if self.client is not None:
@@ -328,6 +339,11 @@ class BigQuerySource(SQLAlchemySource):
                 for column_field in column.fields:
                     field_datum = column_field.__dict__["_properties"]
                     column_fields.append(field_datum)
+                if column_fields:
+                    column_fields = json.dumps(column_fields)
+                else:
+                    column_fields = None
+
                 datum = {
                     "project_id": project_id,
                     "dataset_id": dataset_id,
@@ -335,10 +351,11 @@ class BigQuerySource(SQLAlchemySource):
                     "column_id": column.name,
                     "column_type": column.field_type,
                     "column_description": column.description,
-                    "column_fields": json.dumps(column_fields),
+                    "column_fields": column_fields,
                 }
                 data.append(datum)
-        return data
+        df = pd.DataFrame(data)
+        return df
 
     def get_project_metadata(self) -> pd.DataFrame:
         """Get metadata about the BigQuery project.
@@ -363,12 +380,25 @@ class BigQuerySource(SQLAlchemySource):
                     table_reference = f"{project_id}.{dataset_id}.{table_id}"
                     table = self.client.get_table(table=table_reference)
 
+                    table_clustering_fields = json.dumps(table.clustering_fields)
+                    if table_clustering_fields == "null":
+                        table_clustering_fields = None
+
+                    table_labels = json.dumps(table.labels)
+                    if table_labels == "null":
+                        table_labels = None
+
                     columns = table.schema
                     for column in columns:
                         column_fields = []
                         for column_field in column.fields:
                             field_datum = column_field.__dict__["_properties"]
                             column_fields.append(field_datum)
+                        if column_fields:
+                            column_fields = json.dumps(column_fields)
+                        else:
+                            column_fields = None
+
                         datum = {
                             "project_id": project_id,
                             "dataset_id": dataset_id,
@@ -382,25 +412,146 @@ class BigQuerySource(SQLAlchemySource):
                             "table_created": table.created,
                             "table_modified": table.modified,
                             "table_num_rows": table.num_rows,
-                            "table_clustering_fields": json.dumps(table.clustering_fields),
-                            "table_labels": json.dumps(table.labels),
+                            "table_clustering_fields": table_clustering_fields,
+                            "table_labels": table_labels,
                             "column_id": column.name,
                             "column_type": column.field_type,
                             "column_description": column.description,
-                            "column_fields": json.dumps(column_fields),
+                            "column_fields": column_fields,
                         }
                         data.append(datum)
+
         df = pd.DataFrame(data)
         return df
+
+    def get_schema(
+        self, table: str | None = None, limit: int | None = None
+    ) -> dict[str, dict[str, Any]] | dict[str, Any]:
+        """Determine the schema of the given `table`.
+
+        This method overrides the inherited `get_schema` from the base class `Source`. The reason
+        why we override
+
+        Parameters
+        ----------
+        table : str | None
+            The name of the table. Must be in the form: f"{project_id}.{dataset_id}.{table_id}".
+        limit : int | None
+
+
+        Returns
+        -------
+        dict[str, dict[str, Any]] | dict[str, Any]
+        """
+        schema = {}
+        if self.client is not None:
+            bq_table = self.client.get_table(table=table)
+            project_id = bq_table.project
+            dataset_id = bq_table.dataset_id
+            table_id = bq_table.table_id
+            table_name = f"{project_id}.{dataset_id}.{table_id}"
+            num_rows = bq_table.num_rows if bq_table.num_rows is not None else 1e-6
+
+            columns = bq_table.schema
+            for column in columns:
+                column_name = column.name
+                column_type = column.field_type
+
+                if table_name not in schema:
+                    schema[table_name] = {}
+
+                if column_type == "STRING":
+                    if column_name not in schema[table_name]:
+                        schema[table_name][column_name] = {"type": column_type.lower(), "enum": []}
+
+                    # Determine if the column should be enumerated in the schema.
+                    query = (
+                        f"SELECT COUNT(DISTINCT {column_name}) "
+                        f"FROM {project_id}.{dataset_id}.{table_id};"
+                    )
+                    job = self.client.query(query)
+                    num_distict_values = [result[0] for result in job.result()]
+                    num_distict_values = (
+                        num_distict_values[0] if num_distict_values else self.enum_threshold
+                    )
+                    perc_distinct_values = num_distict_values / num_rows
+                    if perc_distinct_values <= self.enum_threshold:
+                        query = (
+                            f"SELECT {column_name} "
+                            f"FROM {project_id}.{dataset_id}.{table_id} "
+                            f"GROUP BY {column_name};"
+                        )
+                        job = self.client.query(query)
+                        results = sorted(
+                            result[0] for result in job.result() if result[0] is not None
+                        )
+                        schema[table_name][column_name]["enum"] = results
+
+                elif column_type in ["TIMESTAMP", "DATE"]:
+                    if column_name not in schema[table_name]:
+                        schema[table_name][column_name] = {
+                            "type": "str",
+                            "format": "datetime",
+                            "min": "",
+                            "max": "",
+                        }
+
+                    query = (
+                        f"SELECT MIN({column_name}) AS min_date, MAX({column_name}) AS max_date "
+                        f"FROM {project_id}.{dataset_id}.{table_id};"
+                    )
+                    job = self.client.query(query)
+                    results = list(job.result())
+
+                    min_date = results[0][0]
+                    if min_date.tz:
+                        min_date = min_date.astimezone("UTC").tz_localize(None)
+                    min_date_str = pd.to_datetime(min_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    schema[table_name][column_name]["min"] = min_date_str
+
+                    max_date = results[0][1]
+                    if max_date.tz:
+                        max_date = max_date.astimezone("UTC").tz_localize(None)
+                    max_date_str = pd.to_datetime(max_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    schema[table_name][column_name]["max"] = max_date_str
+
+                elif column_type == "BOOLEAN":
+                    if column_name not in schema[table_name]:
+                        schema[table_name][column_name] = {"type": column_type.lower()}
+
+                elif column_type == "RECORD":
+                    # NOTE: Ignore nested data structures for now.
+                    print(f"{column_name} is of type {column_type}, which is currently ignored.")
+                    continue
+
+                elif column_type in ["FLOAT", "INTEGER"]:
+                    if column_name not in schema[table_name]:
+                        schema[table_name][column_name] = {
+                            "type": column_type.lower() if column_type == "INTEGER" else "number",
+                            "inclusiveMinimum": -1.0 * np.inf,
+                            "inclusiveMaximum": np.inf,
+                        }
+
+                    # We will query for the min/max values in the column.
+                    query = (
+                        f"SELECT APPROX_QUANTILES({column_name}, 2) "
+                        f"FROM {project_id}.{dataset_id}.{table_id}"
+                    )
+                    job = self.client.query(query)
+                    results = list(job.result())
+                    inclusiveMinimum, inclusiveMaximum = results[0][0], results[0][1]
+                    schema[table_name][column_name]["inclusiveMinimum"] = inclusiveMinimum
+                    schema[table_name][column_name]["inclusiveMaximum"] = inclusiveMaximum
+        return schema
 
 
 class ISBSource(BigQuerySource):
     enum_threshold = 0.10
     location = "us"
+    ignore_versioned = True
+    dataset_filters = ["TCGA"]
 
-    def __init__(self, ignore_versioned: bool = True) -> None:
-        self.ignore_versioned = ignore_versioned
-
+    def __init__(self, **params) -> None:
         # Uses stored default Google Cloud credentials to authenticate.
         self.authorize()
 
@@ -415,6 +566,7 @@ class ISBSource(BigQuerySource):
         self.tables = self.get_tables()
 
         # self.metadata = self.get_project_metadata()
+        super().__init__(**params)
 
     def get_tables(self) -> list[str]:
         """Get a list of available tables for the ISB-CGC-BQ project.
@@ -440,13 +592,15 @@ class ISBSource(BigQuerySource):
                 dataset_is_versioned = dataset_id.split("_")[-1] == "versioned"
                 if dataset_is_versioned and self.ignore_versioned:
                     continue
+                if dataset_id not in self.dataset_filters:
+                    continue
 
                 table_records = self.isb_client.list_tables(dataset=dataset_id)
-                table_ids = [
-                    table_record.table_id
-                    for table_record in table_records
-                    if table_record.table_id is not None
-                ]
+                table_ids = []
+                for table_record in table_records:
+                    table_id = table_record.table_id
+                    if table_id is not None:
+                        table_ids.append(table_id)
                 for table_id in table_ids:
                     table_references.append(f"{project_id}.{dataset_id}.{table_id}")
 
@@ -523,12 +677,25 @@ class ISBSource(BigQuerySource):
                             "%Y-%m-%dT%H:%M:%S.%f"
                         )
 
+                    table_clustering_fields = json.dumps(table.clustering_fields)
+                    if table_clustering_fields == "null":
+                        table_clustering_fields = None
+
+                    table_labels = json.dumps(table.labels)
+                    if table_labels == "null":
+                        table_labels = None
+
                     columns = table.schema
                     for column in columns:
                         column_fields = []
                         for column_field in column.fields:
                             field_datum = column_field.__dict__["_properties"]
                             column_fields.append(field_datum)
+                        if column_fields:
+                            column_fields = json.dumps(column_fields)
+                        else:
+                            column_fields = None
+
                         datum = {
                             "project_id": project_id,
                             "dataset_id": dataset_id,
@@ -542,14 +709,15 @@ class ISBSource(BigQuerySource):
                             "table_created": table_created,
                             "table_modified": table_modified,
                             "table_num_rows": table.num_rows,
-                            "table_clustering_fields": json.dumps(table.clustering_fields),
-                            "table_labels": json.dumps(table.labels),
+                            "table_clustering_fields": table_clustering_fields,
+                            "table_labels": table_labels,
                             "column_id": column.name,
                             "column_type": column.field_type,
                             "column_description": column.description,
-                            "column_fields": json.dumps(column_fields),
+                            "column_fields": column_fields,
                         }
                         data.append(datum)
+
         df = pd.DataFrame(data)
         return df
 
@@ -649,7 +817,7 @@ class ISBSource(BigQuerySource):
                         schema[table_name][column_name] = {"type": column_type.lower()}
 
                 elif column_type == "RECORD":
-                    # FIXME: Ignore nested data structures for now.
+                    print(f"{column_name} is of type {column_type}, which we currently ignore.")
                     continue
 
                 elif column_type in ["FLOAT", "INTEGER"]:
@@ -662,12 +830,33 @@ class ISBSource(BigQuerySource):
 
                     # We will query for the min/max values in the column.
                     query = (
-                        f"SELECT APPROX_QUANTILES({column_name, 1}) AS bounds "
+                        f"SELECT APPROX_QUANTILES({column_name}, 1) "
                         f"FROM {project_id}.{dataset_id}.{table_id}"
                     )
                     job = self.sql_client.query(query)
-                    results = dict(job.result())
-                    inclusiveMinimum, inclusiveMaximum = results["bounds"]
+                    results = list(job.result())
+                    result = results[0][0]
+                    inclusiveMinimum, inclusiveMaximum = result[0], result[-1]
                     schema[table_name][column_name]["inclusiveMinimum"] = inclusiveMinimum
                     schema[table_name][column_name]["inclusiveMaximum"] = inclusiveMaximum
         return schema
+
+    def execute(self, sql_query: str) -> pd.DataFrame:
+        output = pd.DataFrame()
+        if self.sql_client is not None:
+            results_df = self.sql_client.query_and_wait(sql_query)
+            output = results_df.to_dataframe() if results_df is not None else output
+        return output
+
+    @cached
+    def get(self, table, **query):
+        query.pop("__dask", None)
+        sql_expr = self.get_sql_expr(table)
+        sql_transforms = query.pop("sql_transforms", [])
+        conditions = list(query.items())
+        filter_in_sql = bool(self.filter_in_sql)
+        if filter_in_sql:
+            sql_transforms = [SQLFilter(conditions=conditions)] + sql_transforms
+        for st in sql_transforms:
+            sql_expr = st.apply(sql_expr)
+        return self.execute(sql_expr)
