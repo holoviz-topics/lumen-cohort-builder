@@ -606,7 +606,7 @@ class ISBSource(BigQuerySource):
 
         return table_references
 
-    def get_project_metadata(self) -> pd.DataFrame:
+    def get_project_metadata(self) -> dict:
         """Get metadata about the ISB-CGC-BQ project.
 
         The ISB data is quite large and difficult to navigate. Using a local vector store gives the
@@ -615,9 +615,9 @@ class ISBSource(BigQuerySource):
 
         Returns
         -------
-        pd.DataFrame
+        dict
         """
-        data = []
+        data = {}
         if self.isb_client is not None:
             dataset_records = list(self.isb_client.list_datasets())
             for dataset_record in tqdm(dataset_records):
@@ -685,6 +685,22 @@ class ISBSource(BigQuerySource):
                     if table_labels == "null":
                         table_labels = None
 
+                    key_name = f"{project_id}.{dataset_id}.{table_id}"
+                    data[key_name] = {
+                        "dataset_name": dataset.friendly_name,
+                        "dataset_description": dataset.description,
+                        "dataset_created": dataset_created,
+                        "dataset_modified": dataset_modified,
+                        "table_name": table.friendly_name,
+                        "table_description": table.description,
+                        "table_created": table_created,
+                        "table_modified": table_modified,
+                        "table_num_rows": table.num_rows,
+                        "table_clustering_fields": table_clustering_fields,
+                        "table_labels": table_labels,
+                        "columns": {},
+                    }
+
                     columns = table.schema
                     for column in columns:
                         column_fields = []
@@ -696,30 +712,16 @@ class ISBSource(BigQuerySource):
                         else:
                             column_fields = None
 
-                        datum = {
-                            "project_id": project_id,
-                            "dataset_id": dataset_id,
-                            "dataset_name": dataset.friendly_name,
-                            "dataset_description": dataset.description,
-                            "dataset_created": dataset_created,
-                            "dataset_modified": dataset_modified,
-                            "table_id": table_id,
-                            "table_name": table.friendly_name,
-                            "table_description": table.description,
-                            "table_created": table_created,
-                            "table_modified": table_modified,
-                            "table_num_rows": table.num_rows,
-                            "table_clustering_fields": table_clustering_fields,
-                            "table_labels": table_labels,
-                            "column_id": column.name,
-                            "column_type": column.field_type,
-                            "column_description": column.description,
-                            "column_fields": column_fields,
-                        }
-                        data.append(datum)
+                        data[key_name]["columns"].update(
+                            {
+                                "column_id": column.name,
+                                "column_type": column.field_type,
+                                "column_description": column.description,
+                                "column_fields": column_fields,
+                            }
+                        )
 
-        df = pd.DataFrame(data)
-        return df
+        return data
 
     def get_schema(  # type: ignore [reportIncompatibleMethodOverride]
         self,
