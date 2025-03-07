@@ -29,7 +29,7 @@ duckdb = "~=1.2.0"
 griffe = "~=1.5.7"
 huggingface-hub = "~=0.28.1"
 instructor = "~=1.7.2"
-llama-cpp-python = "~=0.3.7"
+llama-cpp-python = {version = "~=0.3.7", extras = ["server"]}
 panel-graphic-walker = {version = "~=0.6.1", extras = ["kernel"]}
 pydantic = "~=2.10.6"
 pydantic-extra-types = "~=2.10.2"
