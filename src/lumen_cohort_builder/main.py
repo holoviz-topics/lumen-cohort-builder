@@ -117,7 +117,6 @@ class CohortBuilder(Viewer):
             break
         self._current_table = table_name
         lmai.memory['table_sql_metaset'] = await get_metaset({self._source.name: self._source}, [table_name])
-        #lmai.memory['tools_context'] = {'TableLookup': f'Table {table_name} has schema:\n{tables_info[table_name].schema}'}
 
     def _filter_table(self):
         self._filter_input = TextInput(sizing_mode='stretch_width', max_width=self.width, label='Filters')
@@ -179,7 +178,9 @@ class CohortBuilder(Viewer):
     def __panel__(self):
         return self._page
 
-
-llm = lmai.llm.OpenAI()
+if "OPENAI_API_KEY" in os.environ:
+    llm = lmai.llm.OpenAI()
+else:
+    llm = lmai.llm.LlamaCpp()
 
 CohortBuilder(llm=llm).servable()
